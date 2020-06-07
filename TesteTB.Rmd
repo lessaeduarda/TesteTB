@@ -1,0 +1,333 @@
+---
+title: "Teste Transparência Brasil"
+author: "Maria Eduarda R. N. Lessa"
+date: "7 de junho de 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Carregar pacotes necessários:
+require(ggplot2)
+require(ggthemes)
+require(janitor)
+require(magrittr)
+require(plyr)
+require(dplyr)
+require(tinytex)
+require(knitr)
+require(tidyverse)
+require(readxl)
+
+```
+
+
+# **Questão 1**:    
+
+
+```{r echo=T, message=FALSE,results = 'hide', warning=FALSE}
+# Carregar base com salário dos funcionarios:
+
+basesiope <- read.csv("siope_media_ne.csv", encoding = "UTF-8")
+tolower(basesiope$NO_MUNICIPIO)
+
+# Analisar estatística descritiva da base:
+summary(basesiope)
+
+# Transformar a variável valor (VL_TOTAL) de fator para númerica:
+basesiope$VL_TOTAL <- as.numeric(as.character(sub("," , ".", basesiope$VL_TOTAL)))
+```
+
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Média com erros:
+mean(basesiope$VL_TOTAL) 
+```
+
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Ordenar a base a partir de valores decrescentes da variável VL_TOTAL e analisar:
+basesiope2 <- basesiope[order(-basesiope$VL_TOTAL),]
+head(basesiope2$NO_PROFISSIONAL)
+```
+
+### A partir desta análise é possível perceber que a maioria dos valores mais altos equivalem a uma parte da folha de pagamento de vários funcionários de uma mesma instituição, ao invés do valor do pagamento de um só funcionário. As palavras "e outros" e "fundeb" são recorrentes.
+
+
+# **Questão 2**:
+### Nesta questão analisei a base a partir da ordem decrescente de VL_TOTAL e percebi que muitos dos valores altos tinham em NO_PROFISSIONAL termos que se referiam a instituições de ensino, tais como "UE, JI, ESCOLA" (e que muitas vezes se repetem na variável LOCAL_EXERCICIO) e ao FUNDEB. Fiquei em dúvida se o objetivo era filtrar apenas para esses casos, ou se os valores inconsistentes também deveriam ser excluídos da base (como salários abaixo do mínimo de 2017, ou valores "0"), optei por deixar, mesmo sabendo que prejudica medidas de tendência central, porque entendi que era este o comando da questão.    
+
+:
+```{r echo=T, message=FALSE, results = 'hide', warning=FALSE}
+# Filtrar a partir de condições irregulares percebidas na análise da variável 
+# NO_PROFISSIONAL para os valores mais altos de VL_TOTAL:
+basesiope2 <- dplyr::filter(basesiope2, 
+                            grepl("FUNDEB|Fundeb|fundeb|OUTROS|Outros|outros|EEF
+                                  |JI |EMEB |EMEF |ESCOLA |UNID |SEC |CEI |PROJETO
+                                  |EMEIEF |COLEGIO |ESC |CENTRO |EEIF |EEI |EEF 
+                                  |CDI |CRECHE|FOPA|-", NO_PROFISSIONAL))
+```
+
+
+```{r echo=T, message=FALSE, results = 'hide', warning=FALSE}
+# Transformar NO_PROFISSIONAL e LOCAL_EXERCICIO em caractere:
+basesiope$NO_PROFISSIONAL <- as.character(sub("," , ".", basesiope$NO_PROFISSIONAL))
+basesiope$LOCAL_EXERCICIO <- as.character(sub("," , ".", basesiope$LOCAL_EXERCICIO))
+```
+
+
+```{r echo=T, message=FALSE,results = 'hide', warning=FALSE}
+# Pesquisar se na variável NO_PROFISSIONAL há strings iguais as de LOCAL_EXERCÍCIO:  
+basesiope3 <- basesiope %>%
+  rowwise() %>%
+  mutate(nomesiguais = 
+           grepl(NO_PROFISSIONAL,LOCAL_EXERCICIO)
+  )
+basesiope3 <- filter(basesiope3, nomesiguais == TRUE)
+```
+
+
+```{r echo=T, results = 'hide', message=FALSE, warning=FALSE}
+# Juntar as duas bases excluindo linhas repetidas:
+basesiope4 <- full_join(basesiope2, basesiope3)
+```
+
+```{r echo=T, message=FALSE, results = 'hide', warning=FALSE}
+# Criar base com a contagem de erros por município e adicionar linha com total:
+errosmunicipio <- count(basesiope4, NO_MUNICIPIO)
+errosmunicipio <- errosmunicipio %>%
+  adorn_totals("row")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+errosmunicipio
+``` 
+
+
+
+
+# **Questão 3**: 
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Filtrar a base, retirando os registros errados:
+basesiopemedia <- anti_join(basesiope, basesiope4)
+mean(basesiopemedia$VL_TOTAL) # 2507
+```
+
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Criar nova variável com salário dividido por carga horária:
+basesiopemedia <- mutate(basesiopemedia, pagtohora = VL_TOTAL / CARGA_HORARIA)
+```
+
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Analisar média por estado:
+by(basesiopemedia$pagtohora, basesiopemedia$NO_UF, mean)
+```
+
+## Filtrar bases por estado:
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Alagoas:
+baseal <- filter(basesiopemedia, NO_UF == "Alagoas")
+baseal <- group_by(baseal, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+baseal <- mutate(baseal, estado = "Alagoas")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+baseal
+```
+
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Bahia:
+baseba <- filter(basesiopemedia, NO_UF == "Bahia")
+baseba <- group_by(baseba, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+baseba <- mutate(baseba, estado = "Bahia")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+baseba
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Ceará:
+basece <- filter(basesiopemedia, NO_UF == "Ceara")
+basece <- group_by(basece, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basece <- mutate(basece, estado = "Ceara")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basece
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Maranhão:
+basema <- filter(basesiopemedia, NO_UF == "Maranhao")
+basema <- group_by(basema, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basema <- mutate(basema, estado = "Maranhao")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basema
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Paraíba:
+basepb <- filter(basesiopemedia, NO_UF == "Paraiba")
+basepb <- group_by(basepb, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basepb <- mutate(basepb, estado = "Paraiba")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basepb
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Pernambuco:
+basepe <- filter(basesiopemedia, NO_UF == "Pernambuco")
+basepe <- group_by(basepe, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basepe <- mutate(basepe, estado = "Pernambuco")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basepe
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Piaui:
+basepi <- filter(basesiopemedia, NO_UF == "Piaui")
+basepi <- group_by(basepi, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basepi <- mutate(basepi, estado = "Piaui")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basepi
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Rio Grande do Norte:
+basern <- filter(basesiopemedia, NO_UF == "Rio Grande do Norte")
+basern <- group_by(basern, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basern <- mutate(basern, estado = "Rio Grande do Norte")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basern
+```
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Sergipe:
+basese <- filter(basesiopemedia, NO_UF == "Sergipe")
+basese <- group_by(basese, CATEG_PROFISSIONAL) %>% summarize(m = mean(pagtohora))
+basese <- mutate(basese, estado = "Sergipe")
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basese
+```
+
+# **Questão 4**:
+
+ 
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Base para o boxplot:
+baseboxplot <- join_all(list(baseal, baseba, basece, basema, basepb, 
+                             basepe, basepi, basern, basese),type = 'full')
+```
+
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Boxplot dos salários por estado:
+ggplot(baseboxplot, aes(x=estado, y=m))+ 
+  geom_boxplot(fill="gray")+
+  labs(title="Boxplot da média de pagamento por hora, por categoria
+e por estado da região Nordeste",
+       x="Unidade Federativa", y = "Valor Médio da Hora do Profissional")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_clean()
+```
+
+### Como é possível observar no gráfico e na base, a média de pagamento por hora da categoria de "docente graduado bacharel e tecnólogo com diploma de mestrado ou doutorado na área do componente curricular" no Maranhão está muito acima da média dos outros estados.Para facilitar a visualização, optei por excluir esta categoria da base e plotar novamente o gráfico. 
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+
+baseboxplot = baseboxplot[-c(49),]
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+ggplot(baseboxplot, aes(x=estado, y=m)) + 
+  geom_boxplot(fill="gray")+
+  labs(title="Boxplot da média de pagamento por hora, por categoria
+e por estado da região Nordeste",
+       x="Unidade Federativa", y = "Valor Médio da Hora do Profissional")+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  theme_clean()
+```
+
+### É possível observar que existe uma grande variância do valor médio da hora do profissional de educação entre os estados do nordeste. No Rio Grande do Norte, por exemplo, a mediana é de aproximadamente 97.5, o que significa que, entre os profissionais que estão na base analisada, 50% recebem acima deste valor por hora.
+
+# **Questão 5**:
+
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Filtrar salários acima dos 33.700:
+basesiopeart37 <- filter(basesiopemedia, VL_TOTAL >= 33700)
+```
+
+```{r echo=T, message=FALSE, warning=FALSE}
+basesiopeart37$NO_PROFISSIONAL
+```
+
+# **Questão 6**:
+
+
+```{r echo=T, message=FALSE, results='hide', warning=FALSE}
+# Criar base com a média dos municípios:
+basecorr <- group_by(basesiopemedia, NO_MUNICIPIO) %>% summarize(m = mean(pagtohora))
+
+# Recodificar as variáveis:
+
+basecorr <- basecorr %>% 
+  rename(municipio = NO_MUNICIPIO)
+basecorr$municipio <- tolower(basecorr$municipio)
+
+# Carregar base do IDH:
+idh <- read.csv("idhm.csv", encoding = "UTF-8")
+ufs <- c("AL", "BA", "CE", "MA", "PB", "PE", "PI", "RN", "SE")
+idh <- filter(idh, uf %in% ufs)
+idh <- group_by(idh, municipio) %>% summarize(mediaidhed = mean(idhm_educacao_2010))
+
+# Juntar bases: 
+pagtoidh <- full_join(basecorr, idh, by = "municipio")
+
+# Filtrar Outliers:
+pagtoidh = pagtoidh[-c(16),]
+pagtoidh = pagtoidh[-c(32),]
+```
+
+
+```{r echo=T, message=FALSE, warning=FALSE}
+# Scatterplot:
+ggplot(pagtoidh, aes(x=mediaidhed, y=m)) + 
+  geom_point()+
+  ggtitle("Scatterplot do IDH Educação e Média de Valor Hora do Profissional 
+          de Educação por Município")+
+  xlab("Média do IDH Educação")+
+  ylab("Média do Pagamento/Hora dos Profissionais de Educação")+
+  theme_clean()
+```
+
+### Ao observar o gráfico, é possível perceber que não há uma forte relação entre o valor da hora do profissional de educação e o escore do IDH Educação do município.   
